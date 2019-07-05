@@ -1,0 +1,44 @@
+---
+- name: gather server facts
+  hosts: all
+  gather_facts: true
+  user: root
+  vars:
+    services_running: []
+    services_NOT_running: []
+  tasks:
+  - name: populate service facts
+    service_facts:
+
+  - name: populate running services
+    set_fact:
+      services_running: "{{ services_running + [item] }}"
+    when: hostvars[inventory_hostname]['services']['{{item}}']['state'] == "running"
+    with_items: "{{ hostvars[inventory_hostname]['services'].keys() }}"
+
+  - name: populate NOT running services
+    set_fact:
+      services_NOT_running: "{{ services_NOT_running + [item] }}"
+    when: hostvars[inventory_hostname]['services']['{{item}}']['state'] != "running"
+    with_items: "{{ hostvars[inventory_hostname]['services'].keys() }}"
+
+  - name: send facts back to opsgenie
+    uri:
+      url: "{{ alert_api_url }}/details"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "GenieKey {{ api_key }}"
+      body:
+        details:
+          IP: "{{ ansible_default_ipv4.address }}"
+          Hostname: "{{ ansible_fqdn }}"
+          Memory_Total: "{{ ansible_memory_mb.real.total }} MB"
+          Memory_Used: "{{ ansible_memory_mb.real.used }} MB"
+          Memory_Free: "{{ ansible_memory_mb.real.free }} MB"
+          services_running: "{{ services_running|sort|join('\n')|regex_replace('.service') }}"
+          services_stopped: "{{ services_NOT_running|sort|join('\n')|regex_replace('.service') }}"
+      body_format: json
+      status_code: 202
+      return_json: true
+    delegate_to: localhost
