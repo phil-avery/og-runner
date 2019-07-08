@@ -1,0 +1,42 @@
+---
+- name: Ensure EPEL is installed
+  yum:
+    name: epel-release
+    state: present
+
+- name: Ensure pip and dependancies are installed
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - python-pip
+    - python-devel
+
+- name: Install Ansible and Runner
+  pip:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - ansible
+    - ansible-runner
+
+- name: Ensure Directories are created
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  with_items:
+    - /var/log/runner
+    - /var/ansible/playbooks
+    - /var/ansible/runner
+
+- name: Create the runner python script
+  copy:
+    src: runner.py
+    dest: /var/ansible/runner/runner.py
+    mode: 0755
+
+- name: Copy test playbook
+  copy:
+    src: facts.yml
+    dest: /var/ansible/playbooks/facts.yml
