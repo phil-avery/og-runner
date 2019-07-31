@@ -1,0 +1,85 @@
+---
+- hosts: all 
+  gather_facts: false 
+  user: root
+  vars:
+    mountpoint: '/home'
+    purged: []
+    
+  tasks:
+  - name: Define files older than 7 days in dir "{{ mountpoint }}"
+    find:
+      paths: "{{ mountpoint }}"
+#      age: 7d
+    register: files_to_delete
+
+  - name: Purge files older than 7 days in "{{ mountpoint }}"
+    file:
+      path: "{{ item.path }}"
+      state: absent
+    with_items: "{{ files_to_delete.files }}"
+    
+  - set_fact:
+      purged: "{{ purged }} + [ '{{ item.path }}' ]"
+    with_items:
+      - "{{ files_to_delete.files }}"
+
+  - name: gather facts
+    setup:
+
+  - name: Check Mount usage is now under 80%
+    assert:
+      that:
+        - item.mount != mountpoint or {{ item.mount == mountpoint and item.size_available > (item.size_total|float * 0.8) }}
+    with_items: "{{ ansible_mounts }}"
+    ignore_errors: yes
+    register: disk_free
+
+  - name: OpsGenie update success
+    uri:
+      url: "{{ alert_api_url }}/details"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "GenieKey {{ api_key }}"
+      body:
+        note: "Ansible received and resolved an alert from Zabbix to clean up {{ mountpoint }} on {{ inventory_hostname }}.And deleted the following filed {{ purged|sort|join('\n') }}"
+        details:
+          purged: "{{ purged|sort|join('\n ') }}"
+      body_format: json
+      status_code: 202
+      return_json: true
+    delegate_to: localhost
+    when: disk_free is success
+
+  - name: OpsGenie update alert failed
+    uri:
+      url: "{{ alert_api_url }}/details"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "GenieKey {{ api_key }}"
+      body:
+        details:
+          files_deleted: "{{ purged|sort|join('\n') }}"
+        note: "Ansible received an alert from Zabbix to clean up {{ mountpoint }} on {{ inventory_hostname }}. However; after purging files older than 7 days old the disk is still saturated please investigate. The following files where deleted {{ purged }}"
+      body_format: json
+      status_code: 202
+      return_json: true
+    delegate_to: localhost
+    when: disk_free is failed
+
+  - name: OpsGenie increase alert priority
+    uri:
+      url: "{{ alert_api_url }}/priority"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "GenieKey {{ api_key }}"
+      body:
+        priority: "P2"
+      body_format: json
+      status_code: 202
+      return_json: true
+    delegate_to: localhost
+    when: disk_free is failed
