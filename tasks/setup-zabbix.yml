@@ -1,0 +1,17 @@
+---
+- name: Ensure zabbis pip package is installed
+  pip:
+    name zabbix-api
+    state: present
+
+- name: Ensure Zabbix inventory script exists
+  copy:
+    src: zabbix.py
+    dest: /var/ansible/zabbix.py
+    mode: 0755
+    
+- name: Create Zabbix ini file
+  template:
+    src: zabbix.ini.j2
+    dest: /var/ansible/zabbix.ini
+    mode: 0755
