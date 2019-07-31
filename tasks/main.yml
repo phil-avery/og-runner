@@ -4,3 +4,6 @@
 - name: Include EL based tasks
   include_tasks: setup-centos.yml
   when: ansible_distribution == 'CentOS'
+
+- name: Include Zabbix
+  include_tasks: setup-zabbix.yml

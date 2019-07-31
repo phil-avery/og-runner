@@ -1,7 +1,7 @@
 ---
 - name: Ensure zabbis pip package is installed
   pip:
-    name zabbix-api
+    name: zabbix-api
     state: present
 
 - name: Ensure Zabbix inventory script exists
