@@ -1,0 +1,71 @@
+---
+- name: gather server facts
+  hosts: all
+  gather_facts: true
+  user: root
+  vars:
+    services_running: []
+    services_NOT_running: []
+  tasks:
+  - name: populate service facts
+    service_facts:
+
+  - name: populate running services
+    set_fact:
+      services_running: "{{ services_running + [item] }}"
+    when: hostvars[inventory_hostname]['services']['{{item}}']['state'] == "running"
+    with_items: "{{ hostvars[inventory_hostname]['services'].keys() }}"
+
+  - name: populate NOT running services
+    set_fact:
+      services_NOT_running: "{{ services_NOT_running + [item] }}"
+    when: hostvars[inventory_hostname]['services']['{{item}}']['state'] != "running"
+    with_items: "{{ hostvars[inventory_hostname]['services'].keys() }}"
+
+  - setup:
+    register: setup_res
+
+  - name: Create the out directory if it does not exist
+    file:
+      path: "out/"
+      state: directory
+      mode: '0755'
+    delegate_to: localhost
+
+  - name: Create Json file of host facts
+    copy:
+      content: "{{ setup_res | to_nice_json }}"
+      dest: "out/{{ inventory_hostname }}"
+    delegate_to: localhost
+
+  - name: Generate the CMDB report on the hosts facts
+    shell: "ansible-cmdb out/ > {{ inventory_hostname }}.html"
+    delegate_to: localhost
+
+  - name: send facts back to opsgenie
+    uri:
+      url: "{{ alert_api_url }}/details"
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "GenieKey {{ api_key }}"
+      body:
+        details:
+          IP: "{{ ansible_default_ipv4.address }}"
+          Hostname: "{{ ansible_fqdn }}"
+          Memory_Total: "{{ ansible_memory_mb.real.total }} MB"
+          Memory_Used: "{{ ansible_memory_mb.real.used }} MB"
+          Memory_Free: "{{ ansible_memory_mb.real.free }} MB"
+          services_running: "{{ services_running|sort|join('\n')|regex_replace('.service') }}"
+          services_stopped: "{{ services_NOT_running|sort|join('\n')|regex_replace('.service') }}"
+      body_format: json
+      status_code: 202
+      return_json: true
+    delegate_to: localhost
+
+  - name: Attach CMDB report back to opsgenie
+    shell: 'curl -X "POST" "{{ alert_api_url }}/attachments" \
+                 -H "Authorization: GenieKey {{ api_key }}" \
+                 -H "Content-Type: multipart/form-data" \
+                 -F file=@{{ inventory_hostname }}.html'
+    delegate_to: localhost
