@@ -11,24 +11,29 @@
   with_items:
     - python-pip
     - python-devel
+    - ansible-cmdb
 
-- name: Install Ansible and Runner
+- name: Install Ansible pip packages
   pip:
     name: "{{ item }}"
     state: present
   with_items:
     - ansible
     - ansible-runner
+    - ansible-cmdb
 
 - name: Ensure Directories are created
   file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
-    mode: '0755'
+    mode: "{{ item.mode }}"
   with_items:
-    - /var/log/runner
-    - /var/ansible/playbooks
-    - /var/ansible/runner
+    - path: /var/log/runner
+      mode: 0777
+    - path: /var/ansible/playbooks
+      mode: 0755
+    - path: /var/ansible/runner
+      mode: 0755
 
 - name: Create the runner python script
   copy:
@@ -38,5 +43,9 @@
 
 - name: Copy test playbook
   copy:
-    src: facts.yml
-    dest: /var/ansible/playbooks/facts.yml
+    src: "{{ item }}"
+    dest: /var/ansible/playbooks/
+  with_items:
+    - facts.yml
+    - cmdb.yml
+    - diskclean.yml
