@@ -30,7 +30,11 @@
     - path: /var/log/runner
       mode: "0777"
     - path: /var/ansible/playbooks
+      mode: "0777"
+    - path: /var/ansible/playbooks/out
       mode: "0755"
+      owner: opsgenie
+      group: opsgenie
     - path: /var/ansible/runner
       mode: "0755"
 

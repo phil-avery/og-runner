@@ -43,7 +43,7 @@
         Content-Type: application/json
         Authorization: "GenieKey {{ api_key }}"
       body:
-        note: "Ansible received and resolved an alert from Zabbix to clean up {{ mountpoint }} on {{ inventory_hostname }}.And deleted the following filed {{ purged|sort|join('\n') }}"
+        note: "Ansible received and resolved an alert from Zabbix to clean up {{ mountpoint }} on {{ inventory_hostname }}.And deleted the following files {{ purged|sort|join('\n') }}"
         details:
           purged: "{{ purged|sort|join('\n ') }}"
       body_format: json
